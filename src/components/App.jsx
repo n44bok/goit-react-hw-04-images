@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { Watch } from 'react-loader-spinner';
 import { ServiceAPI } from './API';
 import { ImageGallery } from './ImageGallery';
@@ -7,43 +7,41 @@ import { Searchbar } from './Searchbar';
 import { Button } from './Button';
 import { Modal } from './Modal';
 
-export class App extends Component {
-  state = {
-    query: '',
-    data: [],
-    page: 1,
-    error: null,
-    status: 'idle',
-    showModal: false,
-    imgId: null,
-    total: 0,
-  };
+export function App() {
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [data, setData] = useState([]);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState(null);
+  const [status, setStatus] = useState('idle');
+  const [showModal, setShowModal] = useState(false);
+  const [imgId, setImgId] = useState(null);
+  const [total, setTotal] = useState(0);
 
-  componentDidUpdate(prevProps, prevState) {
-    if (this.state.query !== prevState.query) {
-      this.setState({ status: 'pending', data: [], page: 1 }, this.getPicture);
-    }
-    if (this.state.page !== prevState.page && this.state.page !== 1) {
-      this.setState({ status: 'pending' }, this.getPicture);
-    }
-  }
+  
 
-  getPicture = () => {
-    const { query } = this.state;
-    const { page } = this.state;
-    ServiceAPI(query, page)
-      .then(this.dataProcessing)
-      .catch(error => this.setState({ error, status: 'rejected' }));
-  };
 
-  dataProcessing = response => {
+  useEffect(() => {
+    if (!searchQuery) {
+      return;
+    };
+     const getPicture = () => {
+    setStatus('pending');
+    ServiceAPI(searchQuery, page)
+      .then(dataProcessing)
+      .catch(error => { setError(error); setStatus('rejected'); });
+    };
+    getPicture();
+
+  }, [page, searchQuery]);
+
+
+  const dataProcessing = response => {
     const { hits: dataArray, totalHits } = response.data;
 
     if (!dataArray.length) {
-      this.setState({
-        status: 'rejected',
-        error: new Error('Try to change the request'),
-      });
+      setStatus('rejected');
+      setError(new Error('Try to change the request'));
       return;
     }
     window.scrollBy({
@@ -51,7 +49,7 @@ export class App extends Component {
       behavior: 'smooth',
     });
 
-    const newData = dataArray.map(data => {
+    const data = dataArray.map(data => {
       const {
         id,
         largeImageURL: imageURL,
@@ -60,53 +58,49 @@ export class App extends Component {
       } = data;
       return { id, imageURL, src, alt };
     });
-    return this.setState(({ data }) => {
-      return {
-        data: [...data, ...newData],
-        total: totalHits,
-        status: 'resolved',
-      };
-    });
+    
+    setData(state => [...state, ...data]);
+    setTotal(totalHits);
+    setStatus('resolved');
   };
 
-  handleSubmit = searchQuery => {
-    if (this.state.query !== searchQuery) {
-      this.setState({ query: searchQuery });
+  const handleSubmit = newSearchQuery => {
+    if (searchQuery !== newSearchQuery) {
+      setSearchQuery(newSearchQuery);
+      setPage(1);
+      setData([]);
     }
     return;
   };
 
-  handleLoadMore = () => {
-    this.setState(({ page }) => {
-      return { page: page + 1 };
-    });
+  const handleLoadMore = () => {
+    setPage(state => state + 1);
   };
 
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({ showModal: !showModal }));
+  const toggleModal = () => {
+    setShowModal(state => !state);
   };
 
-  clickOnImage = id => {
-    this.setState({ imgId: id });
-    this.toggleModal();
+  const clickOnImage = id => {
+    setImgId(id);
+    toggleModal();
   };
 
-  handleData = () => {
-    return this.state.data.find(img => img.id === this.state.imgId);
+  const handleData = () => {
+    return data.find(img => img.id === imgId);
   };
 
-  render() {
-    const { status, error, data, showModal, total } = this.state;
+  
 
-    return (
+  return (
       <div className="App">
-        <Searchbar onSubmit={this.handleSubmit} />
+        <Searchbar onSubmit={handleSubmit} />
         {data.length > 0 && (
-          <ImageGallery data={this.state.data} onClick={this.clickOnImage} />
+          <ImageGallery data={data} onClick={clickOnImage} />
         )}
         {status === 'resolved' && data.length > 0 && data.length < total && (
           <>
-            <Button onClick={this.handleLoadMore} />
+            <Button onClick={handleLoadMore} />
           </>
         )}
 
@@ -128,11 +122,10 @@ export class App extends Component {
         )}
 
         {showModal && (
-          <Modal onClose={this.toggleModal}>
-            <img src={this.handleData().imageURL} alt={this.handleData().alt} />
+          <Modal onClose={toggleModal}>
+            <img src={handleData().imageURL} alt={handleData().alt} />
           </Modal>
         )}
       </div>
-    );
-  }
-}
+  );
+};
